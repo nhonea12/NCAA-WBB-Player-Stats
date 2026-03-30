@@ -1,0 +1,10 @@
+name: ncaa-wbb-player-stats
+title:
+username: nhonea12
+account: nhonea12
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 17017206
+bundleId: 11781750
+url: https://nhonea12.shinyapps.io/ncaa-wbb-player-stats/
+version: 1
