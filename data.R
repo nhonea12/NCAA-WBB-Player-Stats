@@ -7,8 +7,8 @@ library(hexbin) # for hexagonal shot charts
 
 
 # create player stats for all games and vs tournament/top 100 teams
-# load in player box score data from most recent women's college basketball season
-player_box_scores <- load_wbb_player_box()
+# load in player box score data from the last 5 women's college basketball seasons (2022 through 2026)
+player_box_scores <- load_wbb_player_box(seasons = 2022:2026)
 
 # read in USC vs. Washington game on 12-07-25 (for some reason not included in the player box scores)
 #usc_vs_uw <- espn_wbb_player_box(401825227)
@@ -29,9 +29,8 @@ player_box_scores <- load_wbb_player_box()
 
 player_stats_total <- player_box_scores |> 
   mutate(across(c(starter, minutes, field_goals_made, field_goals_attempted, three_point_field_goals_made, three_point_field_goals_attempted, free_throws_made, free_throws_attempted, points, rebounds, offensive_rebounds, defensive_rebounds, assists, steals, blocks, turnovers, fouls), ~ replace_na(.x, 0))) |>
-  group_by(athlete_id) |> 
+  group_by(season, athlete_id) |> 
   summarize(
-    season = last(season),
     team_id = last(team_id),
     athlete_display_name = last(athlete_display_name),
     athlete_jersey = last(athlete_jersey),
@@ -62,9 +61,9 @@ player_stats_total <- player_box_scores |>
     STL = sum(steals),
     BLK = sum(blocks),
     TO = sum(turnovers),
-    FLS = sum(fouls)
-  ) |> 
-  ungroup()
+    FLS = sum(fouls),
+    .groups = "drop"
+  )
 
 player_stats_total <- player_stats_total |> 
   filter(MIN > 0) |> 
@@ -98,16 +97,30 @@ player_stats_total <- player_stats_total |>
   ) |> 
   mutate(across(c(FG_per, FG3_per, FT_per, EFG_per, AST_TO_ratio), ~ replace_na(.x, 0)))
 
-# create vector of tournament teams
-tournament_teams <- c("UConn", "UTSA", "Richmond", "Stephen F. Austin", "Samford", "Arizona State", "Iowa State", "Syracuse", "Maryland", "Murray State", "North Carolina", "Western Illinois", "Notre Dame", "Fairfield", "Ohio State", "Howard", "Illinois", "Colorado", "Vanderbilt", "High Point", "South Carolina", "Southern", "Clemson", "USC", "Michigan State", "Colorado State", "Oklahoma", "Idaho", "Washington", "South Dakota State", "TCU", "UC San Diego", "Georgia", "Virginia", "Iowa", "Fairleigh Dickinson", "UCLA", "California Baptist", "Oklahoma State", "Princeton", "Ole Miss", "Gonzaga", "Minnesota", "Green Bay", "Baylor", "Nebraska", "Duke", "Charleston", "Texas Tech", "Villanova", "LSU", "Jacksonville", "Texas", "Missouri State", "Oregon", "Virginia Tech", "Kentucky", "James Madison", "West Virginia", "Miami (OH)", "Alabama", "Rhode Island", "Louisville", "Vermont", "NC State", "Tennessee", "Michigan", "Holy Cross")
+# create vector of tournament teams for each of the last 5 seasons
+tournament_teams_2026 <- c("UConn", "UTSA", "Richmond", "Stephen F. Austin", "Samford", "Arizona State", "Iowa State", "Syracuse", "Maryland", "Murray State", "North Carolina", "Western Illinois", "Notre Dame", "Fairfield", "Ohio State", "Howard", "Illinois", "Colorado", "Vanderbilt", "High Point", "South Carolina", "Southern", "Clemson", "USC", "Michigan State", "Colorado State", "Oklahoma", "Idaho", "Washington", "South Dakota State", "TCU", "UC San Diego", "Georgia", "Virginia", "Iowa", "Fairleigh Dickinson", "UCLA", "California Baptist", "Oklahoma State", "Princeton", "Ole Miss", "Gonzaga", "Minnesota", "Green Bay", "Baylor", "Nebraska", "Duke", "Charleston", "Texas Tech", "Villanova", "LSU", "Jacksonville", "Texas", "Missouri State", "Oregon", "Virginia Tech", "Kentucky", "James Madison", "West Virginia", "Miami (OH)", "Alabama", "Rhode Island", "Louisville", "Vermont", "NC State", "Tennessee", "Michigan", "Holy Cross")
+
+tournament_teams_2025 <- c("UC San Diego", "Southern", "Columbia", "Washington", "Iowa State", "Princeton", "High Point", "William & Mary", "UCLA", "Richmond", "Georgia Tech", "Ole Miss", "Ball State", "Baylor", "Grand Canyon", "Florida State", "George Mason", "LSU", "San Diego State", "Michigan State", "Harvard", "NC State", "Vermont", "South Carolina", "Tennessee Tech", "Utah", "Indiana", "Alabama", "Green Bay", "Maryland", "Norfolk State", "West Virginia", "North Carolina", "Oregon State", "Vanderbilt", "Oregon", "Duke", "Lehigh", "Texas", "Illinois", "Creighton", "Tennessee", "South Florida", "Ohio State", "Montana State", "Michigan", "Notre Dame", "Stephen F. Austin", "Louisville", "Nebraska", "TCU", "Fairleigh Dickinson", "USC", "UNC Greensboro", "California", "Mississippi State", "Kansas State", "Fairfield", "Kentucky", "Liberty", "Iowa", "Murray State", "Oklahoma", "Florida Gulf Coast", "Oklahoma State", "South Dakota State", "UConn", "Arkansas State")
+
+tournament_teams_2024 <- c("Sacred Heart", "Presbyterian", "Holy Cross", "UT Martin", "Auburn", "Arizona", "Vanderbilt", "Columbia", "Texas", "Drexel", "Alabama", "Florida State", "Utah", "South Dakota State", "Gonzaga", "UC Irvine", "Tennessee", "Green Bay", "NC State", "Chattanooga", "Iowa State", "Maryland", "Stanford", "Norfolk State", "South Carolina", "North Carolina", "Michigan State", "Oklahoma", "Florida Gulf Coast", "Indiana", "Fairfield", "Nebraska", "Texas A&M", "Oregon State", "Eastern Washington", "Ole Miss", "Marquette", "Notre Dame", "Kent State", "Iowa", "West Virginia", "Princeton", "Colorado", "Drake", "Kansas State", "Portland", "Louisville", "Middle Tennessee", "LSU", "Rice", "Creighton", "UNLV", "UCLA", "California Baptist", "USC", "Texas A&M-Corpus Christi", "Kansas", "Michigan", "Baylor", "Virginia Tech", "Marshall", "Syracuse", "UConn", "Jackson State", "Duke", "Richmond", "Ohio State", "Maine")
+
+tournament_teams_2023 <- c("Illinois", "Mississippi State", "Tennessee Tech", "Monmouth", "Purdue", "St. John's", "Southern", "Sacred Heart", "South Carolina", "Norfolk State", "South Florida", "Marquette", "Oklahoma", "Portland", "UCLA", "Sacramento State", "Creighton", "Notre Dame", "Southern Utah", "Arizona", "West Virginia", "Maryland", "Holy Cross", "Stanford", "Ole Miss", "Gonzaga", "Louisville", "Drake", "Texas", "East Carolina", "Colorado", "Middle Tennessee", "Duke", "Iona", "Florida State", "Georgia", "Iowa", "SE Louisiana", "Indiana", "Oklahoma State", "Miami", "Washington State", "Florida Gulf Coast", "Villanova", "Cleveland State", "Michigan", "UNLV", "LSU", "Hawai'i", "NC State", "Princeton", "Utah", "Gardner-Webb", "Virginia Tech", "Chattanooga", "USC", "South Dakota State", "Iowa State", "Toledo", "Tennessee", "Saint Louis", "North Carolina", "Ohio State", "James Madison", "Baylor", "Alabama", "UConn", "Vermont")
+
+tournament_teams_2022 <- c("Dayton", "DePaul", "Howard", "Incarnate Word", "Longwood", "Mount St. Mary's", "Missouri State", "Florida State", "South Carolina", "Miami", "South Florida", "North Carolina", "Stephen F. Austin", "Arizona", "UNLV", "Georgia", "Iowa State", "UT Arlington", "Colorado", "Creighton", "Iowa", "Illinois State", "Louisville", "UAlbany", "Nebraska", "Gonzaga", "Oregon", "Belmont", "Tennessee", "Buffalo", "BYU", "Villanova", "Michigan", "American", "Ole Miss", "South Dakota", "Baylor", "Hawai'i", "Stanford", "Montana State", "Kansas", "Georgia Tech", "Virginia Tech", "Florida Gulf Coast", "Maryland", "Delaware", "Ohio State", "LSU", "Jackson State", "Utah", "Arkansas", "Texas", "Fairfield", "NC State", "Washington State", "Kansas State", "Notre Dame", "Massachusetts", "Oklahoma", "IU Indianapolis", "Kentucky", "Princeton", "Indiana", "Charlotte", "UCF", "Florida", "UConn", "Mercer")
+
 
 # create player stats in games vs tournament teams
 player_stats_vs_tournament <- player_box_scores |> 
-  filter(opponent_team_location %in% tournament_teams) |> 
+  filter(
+    (opponent_team_location %in% tournament_teams_2026 & season == 2026) | 
+    (opponent_team_location %in% tournament_teams_2025 & season == 2025) | 
+    (opponent_team_location %in% tournament_teams_2024 & season == 2024) | 
+    (opponent_team_location %in% tournament_teams_2023 & season == 2023) | 
+    (opponent_team_location %in% tournament_teams_2022 & season == 2022)
+  ) |> 
   mutate(across(c(starter, minutes, field_goals_made, field_goals_attempted, three_point_field_goals_made, three_point_field_goals_attempted, free_throws_made, free_throws_attempted, points, rebounds, offensive_rebounds, defensive_rebounds, assists, steals, blocks, turnovers, fouls), ~ replace_na(.x, 0))) |>
-  group_by(athlete_id) |> 
+  group_by(season, athlete_id) |> 
   summarize(
-    season = last(season),
     team_id = last(team_id),
     athlete_display_name = last(athlete_display_name),
     athlete_jersey = last(athlete_jersey),
@@ -138,9 +151,9 @@ player_stats_vs_tournament <- player_box_scores |>
     STL = sum(steals),
     BLK = sum(blocks),
     TO = sum(turnovers),
-    FLS = sum(fouls)
-  ) |> 
-  ungroup()
+    FLS = sum(fouls),
+    .groups = "drop"
+  )
 
 player_stats_vs_tournament <- player_stats_vs_tournament |> 
   filter(MIN > 0) |> 
@@ -174,22 +187,34 @@ player_stats_vs_tournament <- player_stats_vs_tournament |>
   ) |> 
   mutate(across(c(FG_per, FG3_per, FT_per, EFG_per, AST_TO_ratio), ~ replace_na(.x, 0)))
 
-# save women's advanceed players stats from barttovrik.com (in JSON format) as a url and read them in
-json_file <- "https://barttorvik.com/ncaaw/getadvstats.php?year=2026"
-json_data <- jsonlite::fromJSON(json_file, flatten = TRUE)
 
-# convert the data to a tibble
-json_tibble <- as_tibble(json_data)
+# create empty data frames that will be filled with Torvik data
+json_tibble_total <- tibble()
+json_tibble_top_100_total <- tibble()
 
-# get Torvik data just for players vs top 100 opponents
-json_file_top_100 <- "https://barttorvik.com/ncaaw/pslice.php?year=2026&top=100"
-json_data_top_100 <- jsonlite::fromJSON(json_file_top_100, flatten = TRUE)
-
-# convert the data to a tibble
-json_tibble_top_100 <- as_tibble(json_data_top_100)
+# get data from Bart Torvik for season from 2021-22 through 2025-26
+for (i in 2022:2026){
+  # save women's advanceed players stats from barttovrik.com (in JSON format) as a url and read them in
+  json_file <- paste0("https://barttorvik.com/ncaaw/getadvstats.php?year=", i)
+  json_data <- jsonlite::fromJSON(json_file, flatten = TRUE)
+  
+  # convert the data to a tibble
+  json_tibble <- as_tibble(json_data)
+  
+  # get Torvik data just for players vs top 100 opponents
+  json_file_top_100 <- paste0("https://barttorvik.com/ncaaw/pslice.php?year=", i, "&top=100")
+  json_data_top_100 <- jsonlite::fromJSON(json_file_top_100, flatten = TRUE)
+  
+  # convert the data to a tibble
+  json_tibble_top_100 <- as_tibble(json_data_top_100)
+  
+  # combine data from different seasons into a single tibble
+  json_tibble_total <- rbind(json_tibble_total, json_tibble)
+  json_tibble_top_100_total <- rbind(json_tibble_top_100_total, json_tibble_top_100)
+}
 
 # rename the variables
-torvik_player_tibble <- json_tibble |> 
+torvik_player_tibble <- json_tibble_total |> 
   rename(
     "player_name" = "V1",
     "team" = "V2",
@@ -273,7 +298,7 @@ torvik_player_tibble <- torvik_player_tibble |>
   )
 
 # rename the variables for vs top 100 opponents
-torvik_players_vs_top_100 <- json_tibble_top_100 |> 
+torvik_players_vs_top_100 <- json_tibble_top_100_total |> 
   rename(
     "player_name" = "V1",
     "team" = "V2",
@@ -421,10 +446,10 @@ player_stats_vs_tournament <- player_stats_vs_tournament |>
 
 # save the player names in a tibble with the IDs to merge back 
 save_player_names <- player_stats_total |> 
-  select(athlete_id, athlete_display_name)
+  select(athlete_id, athlete_display_name, season)
 
 save_player_names_vs_good_teams <- player_stats_vs_tournament |> 
-  select(athlete_id, athlete_display_name)
+  select(athlete_id, athlete_display_name, season)
 
 # remove apostrophes, hyphens, accents, and Jrs/Srs from player names in the data from ESPN
 player_stats_total <- player_stats_total |> 
@@ -505,7 +530,7 @@ player_stats_total <- player_stats_total |>
 
 # go back to original player names
 player_stats_total <- save_player_names |> 
-  left_join(player_stats_total, by = c("athlete_id")) |> 
+  left_join(player_stats_total, by = c("athlete_id", "season")) |> 
   select(-player)
 
 # combine box score stats with stats from Torvik for good teams
@@ -521,18 +546,25 @@ player_stats_vs_tournament <- player_stats_vs_tournament |>
 
 # go back to original player names
 player_stats_vs_tournament <- save_player_names_vs_good_teams |> 
-  left_join(player_stats_vs_tournament, by = c("athlete_id")) |> 
+  left_join(player_stats_vs_tournament, by = c("athlete_id", "season")) |> 
   select(-player)
 
-# create variable of a player's class for the upcoming 2027
+
+# create variable of a player's class for the upcoming 2027 season
 player_stats_total <- player_stats_total |> 
   mutate(
     class2027 = case_when(
-      class == "Fr" ~ "Sophomore",
-      class == "So" ~ "Junior",
-      class == "Jr" ~ "Senior",
-      class == "Sr" ~ "Grad/Done",
-      class == "--" | is.na(class) ~ "--"
+      class == "Fr" & season == 2026  ~ "Sophomore",
+      class == "So"  & season == 2026 ~ "Junior",
+      class == "Jr"  & season == 2026 ~ "Senior",
+      class == "Sr"  & season == 2026 ~ "Grad/Done",
+      class == "Fr" & season == 2025  ~ "Junior",
+      class == "So"  & season == 2025 ~ "Senior",
+      class == "Jr"  & season == 2025 ~ "Grad/Done",
+      class == "Fr"  & season == 2024 ~ "Senior",
+      class == "So"  & season == 2024 ~ "Grad/Done",
+      class == "--" | is.na(class)    ~ "--",
+      TRUE                            ~ "Grad/Done"
     )
   )
 
@@ -548,10 +580,41 @@ player_stats_total <- player_stats_total |>
     team_alternate_color = ifelse(is.na(team_alternate_color), "ffffff", team_alternate_color)
   )
 
+# player_stats_total |>
+#  filter(team_location == "West Virginia") |>
+#  select(team_color, team_alternate_color)
+
+# for Ole Miss switch primary and alternate colors
+player_stats_total <- player_stats_total |> 
+  mutate(
+    team_color = ifelse(team_location == "Ole Miss", "cf142b", team_color),
+    team_alternate_color = ifelse(team_location == "Ole Miss", "13294b", team_alternate_color),
+  )
+
+# for Wake Forest switch primary and alternate colors
+player_stats_total <- player_stats_total |> 
+  mutate(
+    team_color = ifelse(team_location == "Wake Forest", "2c2a29", team_color),
+    team_alternate_color = ifelse(team_location == "Wake Forest", "ceb888", team_alternate_color),
+  )
+
+# for Michigan  switch primary and alternate colors
+player_stats_total <- player_stats_total |> 
+  mutate(
+    team_color = ifelse(team_location == "Michigan", "ffcb05", team_color),
+    team_alternate_color = ifelse(team_location == "Michigan", "00274c", team_alternate_color),
+  )
+
+# for West Virginia  switch primary and alternate colors
+player_stats_total <- player_stats_total |> 
+  mutate(
+    team_color = ifelse(team_location == "West Virginia", "002855", team_color),
+    team_alternate_color = ifelse(team_location == "West Virginia", "eaaa00", team_alternate_color),
+  )
 # get shot charts
 # hexagonal shot charts
 # load NCAA women's basketball play-by-play data
-wbb_pbp <- load_wbb_pbp()
+wbb_pbp <- load_wbb_pbp(seasons = 2022:2026)
 
 # add player names and headshots to play-by-play data
 wbb_pbp <- wbb_pbp |> 
@@ -566,11 +629,13 @@ wbb_pbp <- wbb_pbp |>
   )
   )
 
-# get just shoooting plays from the play-by-play data and adjust their coordinates
+# get just shooting plays from the play-by-play data and adjust their coordinates (if the shot coordinates are available)
 wbb_shots <- wbb_pbp |> 
   filter(
     shooting_play == TRUE, 
-    !(type_text %in% c("MadeFreeThrow", "MissedFreeThrow"))
+    !(type_text %in% c("MadeFreeThrow", "MissedFreeThrow")),
+    is.na(coordinate_x_raw) == FALSE,
+    is.na(coordinate_y_raw) == FALSE
   ) |> 
   mutate(
     loc_x = -1*(coordinate_x_raw - 25),
@@ -595,7 +660,8 @@ wbb_shots <- wbb_pbp |>
     team_slug,
     team_color,
     opponent_team_location,
-    game_date
+    game_date,
+    season
   )
 
 wbb_shots <- wbb_shots |>
@@ -625,9 +691,10 @@ wbb_shots <- wbb_shots |>
     )
   )
 
-# get national averages in FG% from different shot zones
+# get national averages in FG% from different shot zones (average in a season)
 averages <- wbb_shots |> 
   group_by(
+    season, 
     shot_zone_range, 
     shot_zone_area
   ) |> 
@@ -637,7 +704,6 @@ averages <- wbb_shots |>
     league_pct = fgm/fga,
     .groups = "drop"
   )
-
 
 # run this locally to generate the cache files
 saveRDS(player_stats_total, "Data/player_stats_total.rds")
