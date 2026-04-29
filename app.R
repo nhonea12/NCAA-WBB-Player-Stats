@@ -450,9 +450,9 @@ ui <- fluidPage(
           stat_header("Player Impact Metrics", "gp_total_metric"),
           gt_output(outputId = "player_metrics"),
           stat_header("Player Impact Metrics vs. Top 100 Teams", "gp_top_100_metric"),
-          gt_output(outputId = "player_metrics_vs_good"),
-          card_footer("Created by Nathan Honea. Data from ESPN and Bart Torvik.")
-        )
+          gt_output(outputId = "player_metrics_vs_good")
+        ),
+        card_footer("Created by Nathan Honea. Data from ESPN and Bart Torvik.")
       )
     )
   )
@@ -597,7 +597,7 @@ server <- function(input, output, session) {
         labels = percent_formatter,
         guide = guide_colorbar(barwidth = 15)
       ) +
-      scale_alpha_continuous(guide = FALSE, range = c(0.85, 0.98), trans = "sqrt") +
+      scale_alpha_continuous(guide = "none", range = c(0.85, 0.98), trans = "sqrt") +
       theme(legend.text = element_text(size = 12), 
             legend.title = element_text(face = 'bold', size = 18)
       ) + 
