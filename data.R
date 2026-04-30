@@ -662,14 +662,14 @@ percentile_stats_total <- c(
   "min_pg", "pts_pg", "reb_pg", "or_pg", "dr_pg","ast_pg", "stl_pg", "blk_pg", "TO_pg","fg_per", "fg3_per", "ft_per", 
   "fgm", "fga", "fgm2", "fga2", "fg2_per", "fgm3", "fga3", "ft_made", "ft_att", "efg_per",
   "rim_fgm", "rim_fga", "rim_fg_per", "non_rim2_fgm", "non_rim2_fga", "non_rim2_fg_per",
-  "usage", "AST_TO_ratio", "ts_per", "dr_per", "or_per", "stl_per", "blk_per", "to_per", "fouls_per_40",
+  "usage", "ts_per", "AST_TO_ratio", "ast_per", "dr_per", "or_per", "stl_per", "blk_per", "to_per", "fouls_per_40",
   "porpagatu", "d_porpagatu", "total_prpg", "OBPM_torvik", "DBPM_torvik", "BPM_torvik"
 )
 
 percentile_stats_vs_tournament <- c(
   "MIN_pg", "PTS_pg", "REB_pg", "OREB_pg", "DREB_pg","AST_pg", "STL_pg", "BLK_pg", "TO_pg","FG_per", "FG3_per", "FT_per",
   "FGM", "FGA", "FGM2", "FGA2", "FG2_per", "FGM3", "FGA3", "FTM", "FTA", "EFG_per", 
-  "usage", "AST_TO_ratio", "efg_per", "ts_per", "dr_per", "or_per", "stl_per", "blk_per", "to_per", "fouls_per_40",
+  "usage", "efg_per", "ts_per", "AST_TO_ratio", "ast_per", "dr_per", "or_per", "stl_per", "blk_per", "to_per", "fouls_per_40",
   "porpagatu", "d_porpagatu", "total_prpg", "OBPM_torvik", "DBPM_torvik", "BPM_torvik"
 )
 
@@ -731,17 +731,6 @@ player_stats_total <- player_stats_total |>
 
 player_stats_vs_tournament <- player_stats_vs_tournament |>
   left_join(player_percentiles_vs_tournament, by = c("athlete_id", "season"))
-
-# keep only last observation in cases of many-to-many joins
-# player_stats_total <- player_stats_total |>
-#   group_by(athlete_id, season) |>
-#   slice_tail(n = 1) |>
-#   ungroup()
-# 
-# player_stats_vs_tournament <- player_stats_vs_tournament |>
-#   group_by(athlete_id, season) |>
-#   slice_tail(n = 1) |>
-#   ungroup()
 
 # get shot charts
 # hexagonal shot charts

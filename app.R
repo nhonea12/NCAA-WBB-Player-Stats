@@ -1010,9 +1010,10 @@ server <- function(input, output, session) {
       ) |> 
       select(
         usage, 
-        AST_TO_ratio,
         efg_per,
         ts_per,
+        AST_TO_ratio,
+        ast_per,
         dr_per,
         or_per,
         stl_per,
@@ -1024,10 +1025,10 @@ server <- function(input, output, session) {
     
     pctile_row <- player_stats() |>
       select(
-        usage = pctile_usage, AST_TO_ratio = pctile_AST_TO_ratio, efg_per = pctile_efg_per,
-        ts_per = pctile_ts_per, dr_per = pctile_dr_per, or_per = pctile_or_per,
-        stl_per = pctile_stl_per, blk_per = pctile_blk_per, to_per = pctile_to_per,
-        fouls_per_40 = pctile_fouls_per_40
+        usage = pctile_usage, efg_per = pctile_efg_per, ts_per = pctile_ts_per, 
+        AST_TO_ratio = pctile_AST_TO_ratio, ast_per = pctile_ast_per, dr_per = pctile_dr_per, 
+        or_per = pctile_or_per, stl_per = pctile_stl_per, blk_per = pctile_blk_per, 
+        to_per = pctile_to_per, fouls_per_40 = pctile_fouls_per_40
       ) |>
       mutate(row_type = "pctile")
     
@@ -1035,9 +1036,10 @@ server <- function(input, output, session) {
       gt() |>
       cols_label(
         usage = "Usage", 
-        AST_TO_ratio = "AST/TO",
         efg_per = "EFG%",
         ts_per = "TS%",
+        AST_TO_ratio = "AST/TO",
+        ast_per = "AST%",
         dr_per = "DREB%",
         or_per = "OREB%",
         stl_per = "STL%",
@@ -1087,9 +1089,10 @@ server <- function(input, output, session) {
       ) |> 
       select(
         usage, 
-        AST_TO_ratio,
         efg_per,
         ts_per,
+        AST_TO_ratio,
+        ast_per,
         dr_per,
         or_per,
         stl_per,
@@ -1101,10 +1104,10 @@ server <- function(input, output, session) {
     
     pctile_row <- player_stats_vs_good_teams() |>
       select(
-        usage = pctile_usage, AST_TO_ratio = pctile_AST_TO_ratio, efg_per = pctile_efg_per,
-        ts_per = pctile_ts_per, dr_per = pctile_dr_per, or_per = pctile_or_per,
-        stl_per = pctile_stl_per, blk_per = pctile_blk_per, to_per = pctile_to_per,
-        fouls_per_40 = pctile_fouls_per_40
+        usage = pctile_usage, efg_per = pctile_efg_per, ts_per = pctile_ts_per, 
+        AST_TO_ratio = pctile_AST_TO_ratio, ast_per = pctile_ast_per, dr_per = pctile_dr_per, 
+        or_per = pctile_or_per, stl_per = pctile_stl_per, blk_per = pctile_blk_per, 
+        to_per = pctile_to_per, fouls_per_40 = pctile_fouls_per_40
       ) |>
       mutate(row_type = "pctile")
     
@@ -1112,9 +1115,10 @@ server <- function(input, output, session) {
       gt() |>
       cols_label(
         usage = "Usage", 
-        AST_TO_ratio = "AST/TO",
         efg_per = "EFG%",
         ts_per = "TS%",
+        AST_TO_ratio = "AST/TO",
+        ast_per = "AST%",
         dr_per = "DREB%",
         or_per = "OREB%",
         stl_per = "STL%",
