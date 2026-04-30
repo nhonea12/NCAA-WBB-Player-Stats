@@ -347,6 +347,19 @@ stat_header <- function(label, output_id) {
   ))
 }
 
+# suffic function for formatting the percentiles
+ordinal_suffix <- function(x) {
+  x <- round(x)
+  suffix <- dplyr::case_when(
+    x %% 100 %in% 11:13 ~ "th",
+    x %% 10 == 1        ~ "st",
+    x %% 10 == 2        ~ "nd",
+    x %% 10 == 3        ~ "rd",
+    TRUE                ~ "th"
+  )
+  paste0(x, suffix)
+}
+
 
 
 # now the Shiny app
@@ -355,6 +368,7 @@ ui <- fluidPage(
   # sidebar panel of the user interface
   sidebarLayout(
     sidebarPanel(
+      width = 3, 
       h2("Select Team and Player"),
       h5("Team and player names must match what is seen on ESPN.com"),
       # allow user to set the team name
@@ -389,6 +403,7 @@ ui <- fluidPage(
       )
     ),
     mainPanel(
+      width = 9,
       page_fluid(
         layout_columns(
           # card for player headshot and team logo
@@ -452,7 +467,8 @@ ui <- fluidPage(
           stat_header("Player Impact Metrics vs. Top 100 Teams", "gp_top_100_metric"),
           gt_output(outputId = "player_metrics_vs_good")
         ),
-        card_footer("Created by Nathan Honea. Data from ESPN and Bart Torvik.")
+        card_footer("Created by Nathan Honea. Data from ESPN and Bart Torvik."),
+        card_footer("Percentiles are done by player position (Guard, Forward, Center) within each season. Only players who played at least 10 minutes per game are considered.")
       )
     )
   )
@@ -663,204 +679,488 @@ server <- function(input, output, session) {
   # tables of player stats
   # basic player stats for the whole season
   output$basic_player_stats <- render_gt({
-    player_stats() |> 
-      select(
-        MIN_pg, PTS_pg, REB_pg, OREB_pg, DREB_pg, AST_pg, BLK_pg, STL_pg, TO_pg, FG_per, FG3_per, FT_per
-      ) |> # turn into a nice gt table
-      gt() |> 
-      # format column names
-      cols_label(
-        MIN_pg = "MIN",
-        PTS_pg = "PTS",
-        OREB_pg = "OREB",
-        DREB_pg = "DREB",
-        AST_pg = "AST",
-        BLK_pg = "BLK",
-        FG_per = "FG%", 
-        FG3_per = "3FG%",
-        REB_pg = "TREB",
-        FT_per = "FT%",
-        STL_pg = "STL",
-        TO_pg = "TO"
+    stats_row <- player_stats() |> 
+      mutate(
+        min_pg = min_pg |> round(1),
+        pts_pg = pts_pg |> round(1),
+        reb_pg = reb_pg |> round(1),
+        or_pg = or_pg |> round(1),
+        dr_pg = dr_pg |> round(1),
+        ast_pg = ast_pg |> round(1),
+        blk_pg = blk_pg |> round(1),
+        stl_pg = stl_pg |> round(1),
+        TO_pg = TO_pg |> round(1),
+        fg_per = fg_per |> round(3),
+        fg3_per = fg3_per |> round(3),
+        ft_per = ft_per |> round(3),
       ) |> 
+      select(min_pg, pts_pg, reb_pg, or_pg, dr_pg, ast_pg, blk_pg, stl_pg, TO_pg, fg_per, fg3_per, ft_per) |>
+      mutate(row_type = "stat")
+    
+    pctile_row <- player_stats() |>
+      select(
+        min_pg = pctile_min_pg, pts_pg = pctile_pts_pg, reb_pg = pctile_reb_pg,
+        or_pg = pctile_or_pg, dr_pg = pctile_dr_pg, ast_pg = pctile_ast_pg,
+        blk_pg = pctile_blk_pg, stl_pg = pctile_stl_pg, TO_pg = pctile_TO_pg,
+        fg_per = pctile_fg_per, fg3_per = pctile_fg3_per, ft_per = pctile_ft_per
+      ) |>
+      mutate(row_type = "pctile")
+    
+    bind_rows(stats_row, pctile_row) |>
+      gt() |>
+      cols_label(
+        min_pg = "MIN", pts_pg = "PTS", reb_pg = "TREB", or_pg = "OREB",
+        dr_pg = "DREB", ast_pg = "AST", blk_pg = "BLK", stl_pg = "STL",
+        TO_pg = "TO", fg_per = "FG%", fg3_per = "3FG%", ft_per = "FT%",
+        row_type = ""
+      ) |>
+      # format the percentile row as integers with "th" suffix
+      fmt(
+        rows = row_type == "pctile",
+        columns = -row_type,
+        fns = function(x) ifelse(is.na(x), "—", ordinal_suffix(x))
+      ) |>
+      # color the percentile row by value (red → white → green)
+      data_color(
+        rows = row_type == "pctile",
+        columns = -row_type,
+        method = "numeric",
+        domain = c(0, 100),
+        palette = c("#d73027", "#fee08b", "#1a9850"),
+        na_color = "white"
+      ) |>
+      # style the percentile row text: smaller, bold
+      tab_style(
+        style = list(
+          cell_text(size = "x-small", weight = "bold"),
+          cell_borders(sides = "top", style = "hidden")
+        ),
+        locations = cells_body(rows = row_type == "pctile")
+      ) |>
+      # reduce spacing between the two rows
+      tab_style(
+        style = cell_borders(sides = "bottom", style = "hidden"),
+        locations = cells_body(rows = row_type == "stat")
+      ) |>
+      cols_hide(row_type) |>
       gt_theme_ncaa()
   })
-  
-  # basic player stats vs tournament teams
+
+  # basic player stats in games vs tournament teams
   output$basic_player_stats_vs_good <- render_gt({
-    player_stats_vs_good_teams() |> 
+    stats_row <- player_stats_vs_good_teams() |> 
+      select(MIN_pg, PTS_pg, REB_pg, OREB_pg, DREB_pg, AST_pg, BLK_pg, STL_pg, TO_pg, FG_per, FG3_per, FT_per) |>
+      mutate(row_type = "stat")
+    
+    pctile_row <- player_stats_vs_good_teams() |>
       select(
-        MIN_pg, PTS_pg, REB_pg, OREB_pg, DREB_pg, AST_pg, BLK_pg, STL_pg, TO_pg, FG_per, FG3_per, FT_per
-      ) |> # turn into a nice gt table
-      gt() |> 
-      # format column names
+        MIN_pg = pctile_MIN_pg, PTS_pg = pctile_PTS_pg, REB_pg = pctile_REB_pg,
+        OREB_pg = pctile_OREB_pg, DREB_pg = pctile_DREB_pg, AST_pg = pctile_AST_pg,
+        BLK_pg = pctile_BLK_pg, STL_pg = pctile_STL_pg, TO_pg = pctile_TO_pg,
+        FG_per = pctile_FG_per, FG3_per = pctile_FG3_per, FT_per = pctile_FT_per
+      ) |>
+      mutate(row_type = "pctile")
+    
+    bind_rows(stats_row, pctile_row) |>
+      gt() |>
       cols_label(
-        MIN_pg = "MIN",
-        PTS_pg = "PTS",
-        OREB_pg = "OREB",
-        DREB_pg = "DREB",
-        AST_pg = "AST",
-        BLK_pg = "BLK",
-        FG_per = "FG%", 
-        FG3_per = "3FG%",
-        REB_pg = "TREB",
-        FT_per = "FT%",
-        STL_pg = "STL",
-        TO_pg = "TO"
-      ) |> 
+        MIN_pg = "MIN", PTS_pg = "PTS", REB_pg = "TREB", OREB_pg = "OREB",
+        DREB_pg = "DREB", AST_pg = "AST", BLK_pg = "BLK", STL_pg = "STL",
+        TO_pg = "TO", FG_per = "FG%", FG3_per = "3FG%", FT_per = "FT%",
+        row_type = ""
+      ) |>
+      # format the percentile row as integers with "th" suffix
+      fmt(
+        rows = row_type == "pctile",
+        columns = -row_type,
+        fns = function(x) ifelse(is.na(x), "—", ordinal_suffix(x))
+      ) |>
+      # color the percentile row by value (red → white → green)
+      data_color(
+        rows = row_type == "pctile",
+        columns = -row_type,
+        method = "numeric",
+        domain = c(0, 100),
+        palette = c("#d73027", "#fee08b", "#1a9850"),
+        na_color = "white"
+      ) |>
+      # style the percentile row text: smaller, bold
+      tab_style(
+        style = list(
+          cell_text(size = "x-small", weight = "bold"),
+          cell_borders(sides = "top", style = "hidden")
+        ),
+        locations = cells_body(rows = row_type == "pctile")
+      ) |>
+      # reduce spacing between the two rows
+      tab_style(
+        style = cell_borders(sides = "bottom", style = "hidden"),
+        locations = cells_body(rows = row_type == "stat")
+      ) |>
+      cols_hide(row_type) |>
       gt_theme_ncaa()
   })
   
   # tables of shooting splits
-  # basic player stats for the whole season
+  # shooting splits for the whole season
   output$shooting_splits_1 <- render_gt({
-    player_stats() |> 
-      select(
-        FGM, FGA, FG_per, FGM2, FGA2, FG2_per, FGM3, FGA3, FG3_per, FTM, FTA, FT_per, EFG_per
-      ) |> # turn into a nice gt table
-      gt() |> 
-      # format column names
-      cols_label(
-        FGM = "FG",
-        FGA = "FGA",
-        FG_per = "FG%", 
-        FGM2 = "FG2",
-        FGA2 = "FGA2",
-        FG2_per = "FG2%",
-        FGM3 = "3FG",
-        FGA3 = "3FGA",
-        FG3_per = "3FG%", 
-        FTM = "FT",
-        FTA = "FTA",
-        FT_per = "FT%",
-        EFG_per = "EFG%"
+    stats_row <- player_stats() |> 
+      mutate(
+        fg_per = fg_per |> round(3),
+        fg3_per = fg3_per |> round(3),
+        ft_per = ft_per |> round(3),
+        efg_per = (efg_per/100) |> round(3)
       ) |> 
+      select(fgm, fga, fg_per, fgm2, fga2, fg2_per, fgm3, fga3, fg3_per, ft_made, ft_att, ft_per, efg_per) |>
+      mutate(row_type = "stat")
+    
+    pctile_row <- player_stats() |>
+      select(
+        fgm = pctile_fgm, fga = pctile_fga, fg_per = pctile_fg_per,
+        fgm2 = pctile_fgm2, fga2 = pctile_fga2, fg2_per = pctile_fg2_per,
+        fgm3 = pctile_fgm3, fga3 = pctile_fga3, fg3_per = pctile_fg3_per,
+        ft_made = pctile_ft_made, ft_att = pctile_ft_att, ft_per = pctile_ft_per,
+        efg_per = pctile_efg_per
+      ) |>
+      mutate(row_type = "pctile")
+    
+    bind_rows(stats_row, pctile_row) |>
+      gt() |>
+      cols_label(
+        fgm = "FG",
+        fga = "FGA",
+        fg_per = "FG%",
+        fgm2 = "FG2",
+        fga2 = "FGA2",
+        fg2_per = "FG2%",
+        fgm3 = "3FG",
+        fga3 = "3FGA",
+        fg3_per = "3FG%",
+        ft_made = "FT",
+        ft_att = "FTA",
+        ft_per = "FT%",
+        efg_per = "EFG%",
+        row_type = ""
+      ) |>
+      # format the percentile row as integers with "th" suffix
+      fmt(
+        rows = row_type == "pctile",
+        columns = -row_type,
+        fns = function(x) ifelse(is.na(x), "—", ordinal_suffix(x))
+      ) |>
+      # color the percentile row by value (red → white → green)
+      data_color(
+        rows = row_type == "pctile",
+        columns = -row_type,
+        method = "numeric",
+        domain = c(0, 100),
+        palette = c("#d73027", "#fee08b", "#1a9850"),
+        na_color = "white"
+      ) |>
+      # style the percentile row text: smaller, bold
+      tab_style(
+        style = list(
+          cell_text(size = "x-small", weight = "bold"),
+          cell_borders(sides = "top", style = "hidden")
+        ),
+        locations = cells_body(rows = row_type == "pctile")
+      ) |>
+      # reduce spacing between the two rows
+      tab_style(
+        style = cell_borders(sides = "bottom", style = "hidden"),
+        locations = cells_body(rows = row_type == "stat")
+      ) |>
+      cols_hide(row_type) |>
       gt_theme_ncaa()
   })
   
+  # second table of shooting splits for the whole season
   output$shooting_splits_2 <- render_gt({
-    player_stats() |> 
+    stats_row <- player_stats() |> 
       mutate(
         rim_fg_per = rim_fg_per |> round(3),
         non_rim2_fg_per = non_rim2_fg_per |> round(3)
       ) |> 
       select(
         rim_fgm, rim_fga, rim_fg_per, non_rim2_fgm, non_rim2_fga, non_rim2_fg_per
-      ) |> # turn into a nice gt table
-      gt() |> 
-      # format column names
+      ) |> 
+      mutate(row_type = "stat")
+    
+    pctile_row <- player_stats() |>
+      select(
+        rim_fgm = pctile_rim_fgm, rim_fga = pctile_rim_fga, rim_fg_per = pctile_rim_fg_per,
+        non_rim2_fgm = pctile_non_rim2_fgm, non_rim2_fga = pctile_non_rim2_fga, non_rim2_fg_per = pctile_non_rim2_fg_per
+      ) |>
+      mutate(row_type = "pctile")
+    
+    bind_rows(stats_row, pctile_row) |>
+      gt() |>
       cols_label(
         rim_fgm = "Short 2 FG",
         rim_fga = "Short 2 FGA",
         rim_fg_per = "Short 2 FG%",
         non_rim2_fgm = "Long 2 FG",
         non_rim2_fga = "Long 2 FGA",
-        non_rim2_fg_per = "Long 2 FG%"
-      ) |> 
+        non_rim2_fg_per = "Long 2 FG%",
+        row_type = ""
+      ) |>
+      # format the percentile row as integers with "th" suffix
+      fmt(
+        rows = row_type == "pctile",
+        columns = -row_type,
+        fns = function(x) ifelse(is.na(x), "—", ordinal_suffix(x))
+      ) |>
+      # color the percentile row by value (red → white → green)
+      data_color(
+        rows = row_type == "pctile",
+        columns = -row_type,
+        method = "numeric",
+        domain = c(0, 100),
+        palette = c("#d73027", "#fee08b", "#1a9850"),
+        na_color = "white"
+      ) |>
+      # style the percentile row text: smaller, bold
+      tab_style(
+        style = list(
+          cell_text(size = "x-small", weight = "bold"),
+          cell_borders(sides = "top", style = "hidden")
+        ),
+        locations = cells_body(rows = row_type == "pctile")
+      ) |>
+      # reduce spacing between the two rows
+      tab_style(
+        style = cell_borders(sides = "bottom", style = "hidden"),
+        locations = cells_body(rows = row_type == "stat")
+      ) |>
+      cols_hide(row_type) |>
       gt_theme_ncaa()
   })
   
   # shooting splits vs tournament teams
   output$shooting_splits_vs_good <- render_gt({
-    player_stats_vs_good_teams() |> 
+    stats_row <- player_stats_vs_good_teams() |> 
+      select(FGM, FGA, FG_per, FGM2, FGA2, FG2_per, FGM3, FGA3, FG3_per, FTM, FTA, FT_per, EFG_per) |>
+      mutate(row_type = "stat")
+    
+    pctile_row <- player_stats_vs_good_teams() |>
       select(
-        FGM, FGA, FG_per, FGM2, FGA2, FG2_per, FGM3, FGA3, FG3_per, FTM, FTA, FT_per, EFG_per
-      ) |> # turn into a nice gt table
-      gt() |> 
-      # format column names
+        FGM = pctile_FGM, FGA = pctile_FGA, FG_per = pctile_FG_per,
+        FGM2 = pctile_FGM2, FGA2 = pctile_FGA2, FG2_per = pctile_FG2_per,
+        FGM3 = pctile_FGM3, FGA3 = pctile_FGA3, FG3_per = pctile_FG3_per,
+        FTM = pctile_FTM, FTA = pctile_FTA, FT_per = pctile_FT_per,
+        EFG_per = pctile_EFG_per
+      ) |>
+      mutate(row_type = "pctile")
+    
+    bind_rows(stats_row, pctile_row) |>
+      gt() |>
       cols_label(
         FGM = "FG",
         FGA = "FGA",
-        FG_per = "FG%", 
+        FG_per = "FG%",
         FGM2 = "FG2",
         FGA2 = "FGA2",
         FG2_per = "FG2%",
         FGM3 = "3FG",
         FGA3 = "3FGA",
-        FG3_per = "3FG%", 
+        FG3_per = "3FG%",
         FTM = "FT",
         FTA = "FTA",
         FT_per = "FT%",
-        EFG_per = "EFG%"
-      ) |> 
+        EFG_per = "EFG%",
+        row_type = ""
+      ) |>
+      # format the percentile row as integers with "th" suffix
+      fmt(
+        rows = row_type == "pctile",
+        columns = -row_type,
+        fns = function(x) ifelse(is.na(x), "—", ordinal_suffix(x))
+      ) |>
+      # color the percentile row by value (red → white → green)
+      data_color(
+        rows = row_type == "pctile",
+        columns = -row_type,
+        method = "numeric",
+        domain = c(0, 100),
+        palette = c("#d73027", "#fee08b", "#1a9850"),
+        na_color = "white"
+      ) |>
+      # style the percentile row text: smaller, bold
+      tab_style(
+        style = list(
+          cell_text(size = "x-small", weight = "bold"),
+          cell_borders(sides = "top", style = "hidden")
+        ),
+        locations = cells_body(rows = row_type == "pctile")
+      ) |>
+      # reduce spacing between the two rows
+      tab_style(
+        style = cell_borders(sides = "bottom", style = "hidden"),
+        locations = cells_body(rows = row_type == "stat")
+      ) |>
+      cols_hide(row_type) |>
       gt_theme_ncaa()
   })
   
   # tables of advanced player stats
   # advanced player stats for the whole season
   output$advanced_player_stats <- render_gt({
-    player_stats() |> 
+    stats_row <- player_stats() |> 
       mutate(
-        TS_per = (ts_per/100) |> round(digits = 3)
+        efg_per = (efg_per/100) |> round(3),
+        ts_per = (ts_per/100) |> round(3)
       ) |> 
       select(
         usage, 
         AST_TO_ratio,
-        EFG_per,
-        TS_per,
+        efg_per,
+        ts_per,
         dr_per,
         or_per,
         stl_per,
         blk_per,
         to_per,
         fouls_per_40
-      ) |> # turn into a nice gt table
-      gt() |> 
-      # format column names
+      ) |>
+      mutate(row_type = "stat")
+    
+    pctile_row <- player_stats() |>
+      select(
+        usage = pctile_usage, AST_TO_ratio = pctile_AST_TO_ratio, efg_per = pctile_efg_per,
+        ts_per = pctile_ts_per, dr_per = pctile_dr_per, or_per = pctile_or_per,
+        stl_per = pctile_stl_per, blk_per = pctile_blk_per, to_per = pctile_to_per,
+        fouls_per_40 = pctile_fouls_per_40
+      ) |>
+      mutate(row_type = "pctile")
+    
+    bind_rows(stats_row, pctile_row) |>
+      gt() |>
       cols_label(
         usage = "Usage", 
         AST_TO_ratio = "AST/TO",
-        EFG_per = "EFG%",
-        TS_per = "TS%",
+        efg_per = "EFG%",
+        ts_per = "TS%",
         dr_per = "DREB%",
         or_per = "OREB%",
         stl_per = "STL%",
         blk_per = "BLK%",
         to_per = "TO%",
-        fouls_per_40 = "Fouls/40"
-      ) |> 
+        fouls_per_40 = "Fouls/40",
+        row_type = ""
+      ) |>
+      # format the percentile row as integers with "th" suffix
+      fmt(
+        rows = row_type == "pctile",
+        columns = -row_type,
+        fns = function(x) ifelse(is.na(x), "—", ordinal_suffix(x))
+      ) |>
+      # color the percentile row by value (red → white → green)
+      data_color(
+        rows = row_type == "pctile",
+        columns = -row_type,
+        method = "numeric",
+        domain = c(0, 100),
+        palette = c("#d73027", "#fee08b", "#1a9850"),
+        na_color = "white"
+      ) |>
+      # style the percentile row text: smaller, bold
+      tab_style(
+        style = list(
+          cell_text(size = "x-small", weight = "bold"),
+          cell_borders(sides = "top", style = "hidden")
+        ),
+        locations = cells_body(rows = row_type == "pctile")
+      ) |>
+      # reduce spacing between the two rows
+      tab_style(
+        style = cell_borders(sides = "bottom", style = "hidden"),
+        locations = cells_body(rows = row_type == "stat")
+      ) |>
+      cols_hide(row_type) |>
       gt_theme_ncaa()
   })
   
-  # advanced player stats vs tournament teams
+  # advanced player stats vs top 100 teams
   output$advanced_player_stats_vs_good <- render_gt({
-    player_stats_vs_good_teams() |> 
+    stats_row <- player_stats_vs_good_teams() |> 
       mutate(
-        TS_per = (ts_per/100) |> round(digits = 3)
+        efg_per = (efg_per/100) |> round(3),
+        ts_per = (ts_per/100) |> round(3)
       ) |> 
       select(
         usage, 
         AST_TO_ratio,
-        EFG_per,
-        TS_per,
+        efg_per,
+        ts_per,
         dr_per,
         or_per,
         stl_per,
         blk_per,
         to_per,
         fouls_per_40
-      ) |> # turn into a nice gt table
-      gt() |> 
-      # format column names
+      ) |>
+      mutate(row_type = "stat")
+    
+    pctile_row <- player_stats_vs_good_teams() |>
+      select(
+        usage = pctile_usage, AST_TO_ratio = pctile_AST_TO_ratio, efg_per = pctile_efg_per,
+        ts_per = pctile_ts_per, dr_per = pctile_dr_per, or_per = pctile_or_per,
+        stl_per = pctile_stl_per, blk_per = pctile_blk_per, to_per = pctile_to_per,
+        fouls_per_40 = pctile_fouls_per_40
+      ) |>
+      mutate(row_type = "pctile")
+    
+    bind_rows(stats_row, pctile_row) |>
+      gt() |>
       cols_label(
         usage = "Usage", 
         AST_TO_ratio = "AST/TO",
-        EFG_per = "EFG%",
-        TS_per = "TS%",
+        efg_per = "EFG%",
+        ts_per = "TS%",
         dr_per = "DREB%",
         or_per = "OREB%",
         stl_per = "STL%",
         blk_per = "BLK%",
         to_per = "TO%",
-        fouls_per_40 = "Fouls/40"
-      ) |> 
+        fouls_per_40 = "Fouls/40",
+        row_type = ""
+      ) |>
+      # format the percentile row as integers with "th" suffix
+      fmt(
+        rows = row_type == "pctile",
+        columns = -row_type,
+        fns = function(x) ifelse(is.na(x), "—", ordinal_suffix(x))
+      ) |>
+      # color the percentile row by value (red → white → green)
+      data_color(
+        rows = row_type == "pctile",
+        columns = -row_type,
+        method = "numeric",
+        domain = c(0, 100),
+        palette = c("#d73027", "#fee08b", "#1a9850"),
+        na_color = "white"
+      ) |>
+      # style the percentile row text: smaller, bold
+      tab_style(
+        style = list(
+          cell_text(size = "x-small", weight = "bold"),
+          cell_borders(sides = "top", style = "hidden")
+        ),
+        locations = cells_body(rows = row_type == "pctile")
+      ) |>
+      # reduce spacing between the two rows
+      tab_style(
+        style = cell_borders(sides = "bottom", style = "hidden"),
+        locations = cells_body(rows = row_type == "stat")
+      ) |>
+      cols_hide(row_type) |>
       gt_theme_ncaa()
   })
   
   # tables of all in one player metrics
   # player metrics for the whole season
   output$player_metrics <- render_gt({
-    player_stats() |> 
+    stats_row <- player_stats() |> 
       mutate(
         porpagatu = round(porpagatu, 2), 
         d_porpagatu = round(d_porpagatu, 2),
@@ -876,23 +1176,62 @@ server <- function(input, output, session) {
         OBPM_torvik,
         DBPM_torvik,
         BPM_torvik
-      ) |> # turn into a nice gt table
-      gt() |> 
-      # format column names
+      ) |> 
+      mutate(row_type = "stat")
+    
+    pctile_row <- player_stats() |>
+      select(
+        porpagatu = pctile_porpagatu, d_porpagatu = pctile_d_porpagatu, total_prpg = pctile_total_prpg,
+        OBPM_torvik = pctile_OBPM_torvik, DBPM_torvik = pctile_DBPM_torvik, BPM_torvik = pctile_BPM_torvik
+      ) |>
+      mutate(row_type = "pctile")
+    
+    bind_rows(stats_row, pctile_row) |>
+      gt() |>
       cols_label(
         porpagatu = "Off. PRPG",
         d_porpagatu = "Def. PRPG",
         total_prpg = "Total PRPG",
         OBPM_torvik = "Off. BPM",
         DBPM_torvik = "Def. BPM",
-        BPM_torvik = "BPM"
-      ) |> 
+        BPM_torvik = "BPM",
+        row_type = ""
+      ) |>
+      # format the percentile row as integers with a suffix
+      fmt(
+        rows = row_type == "pctile",
+        columns = -row_type,
+        fns = function(x) ifelse(is.na(x), "—", ordinal_suffix(x))
+      ) |>
+      # color the percentile row by value (red → white → green)
+      data_color(
+        rows = row_type == "pctile",
+        columns = -row_type,
+        method = "numeric",
+        domain = c(0, 100),
+        palette = c("#d73027", "#fee08b", "#1a9850"),
+        na_color = "white"
+      ) |>
+      # style the percentile row text: smaller, bold
+      tab_style(
+        style = list(
+          cell_text(size = "x-small", weight = "bold"),
+          cell_borders(sides = "top", style = "hidden")
+        ),
+        locations = cells_body(rows = row_type == "pctile")
+      ) |>
+      # reduce spacing between the two rows
+      tab_style(
+        style = cell_borders(sides = "bottom", style = "hidden"),
+        locations = cells_body(rows = row_type == "stat")
+      ) |>
+      cols_hide(row_type) |>
       gt_theme_ncaa()
   })
   
-  # player metrics vs tournament teams
+  # player metrics vs top 100 teams
   output$player_metrics_vs_good <- render_gt({
-    player_stats_vs_good_teams() |> 
+    stats_row <- player_stats_vs_good_teams() |> 
       mutate(
         porpagatu = round(porpagatu, 2), 
         d_porpagatu = round(d_porpagatu, 2),
@@ -908,17 +1247,56 @@ server <- function(input, output, session) {
         OBPM_torvik,
         DBPM_torvik,
         BPM_torvik
-      ) |> # turn into a nice gt table
-      gt() |> 
-      # format column names
+      ) |> 
+      mutate(row_type = "stat")
+    
+    pctile_row <- player_stats_vs_good_teams() |>
+      select(
+        porpagatu = pctile_porpagatu, d_porpagatu = pctile_d_porpagatu, total_prpg = pctile_total_prpg,
+        OBPM_torvik = pctile_OBPM_torvik, DBPM_torvik = pctile_DBPM_torvik, BPM_torvik = pctile_BPM_torvik
+      ) |>
+      mutate(row_type = "pctile")
+    
+    bind_rows(stats_row, pctile_row) |>
+      gt() |>
       cols_label(
         porpagatu = "Off. PRPG",
         d_porpagatu = "Def. PRPG",
         total_prpg = "Total PRPG",
         OBPM_torvik = "Off. BPM",
         DBPM_torvik = "Def. BPM",
-        BPM_torvik = "BPM"
-      ) |> 
+        BPM_torvik = "BPM",
+        row_type = ""
+      ) |>
+      # format the percentile row as integers with "th" suffix
+      fmt(
+        rows = row_type == "pctile",
+        columns = -row_type,
+        fns = function(x) ifelse(is.na(x), "—", ordinal_suffix(x))
+      ) |>
+      # color the percentile row by value (red → white → green)
+      data_color(
+        rows = row_type == "pctile",
+        columns = -row_type,
+        method = "numeric",
+        domain = c(0, 100),
+        palette = c("#d73027", "#fee08b", "#1a9850"),
+        na_color = "white"
+      ) |>
+      # style the percentile row text: smaller, bold
+      tab_style(
+        style = list(
+          cell_text(size = "x-small", weight = "bold"),
+          cell_borders(sides = "top", style = "hidden")
+        ),
+        locations = cells_body(rows = row_type == "pctile")
+      ) |>
+      # reduce spacing between the two rows
+      tab_style(
+        style = cell_borders(sides = "bottom", style = "hidden"),
+        locations = cells_body(rows = row_type == "stat")
+      ) |>
+      cols_hide(row_type) |>
       gt_theme_ncaa()
   })
 }

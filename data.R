@@ -297,6 +297,7 @@ torvik_player_tibble <- torvik_player_tibble |>
     team = ifelse(team |> str_ends("St."), str_replace_all(team, "St.", "State"), team)
   )
 
+
 # rename the variables for vs top 100 opponents
 torvik_players_vs_top_100 <- json_tibble_top_100_total |> 
   rename(
@@ -464,7 +465,8 @@ player_stats_total <- player_stats_total |>
       athlete_display_name |> str_ends(", Jr.") ~ athlete_display_name |> str_replace_all(", Jr.", ""),
       athlete_display_name |> str_ends(" Jr.") ~ athlete_display_name |> str_replace_all(" Jr.", ""),
       athlete_display_name |> str_ends(", Sr.") ~ athlete_display_name |> str_replace_all(", Sr.", ""),
-      athlete_display_name |> str_ends(" Sr.") ~ athlete_display_name |> str_replace_all(" Sr.", "")
+      athlete_display_name |> str_ends(" Sr.") ~ athlete_display_name |> str_replace_all(" Sr.", ""),
+      .default = athlete_display_name
     )
   )
 
@@ -480,7 +482,8 @@ player_stats_vs_tournament <- player_stats_vs_tournament |>
       athlete_display_name |> str_ends(", Jr.") ~ athlete_display_name |> str_replace_all(", Jr.", ""),
       athlete_display_name |> str_ends(" Jr.") ~ athlete_display_name |> str_replace_all(" Jr.", ""),
       athlete_display_name |> str_ends(", Sr.") ~ athlete_display_name |> str_replace_all(", Sr.", ""),
-      athlete_display_name |> str_ends(" Sr.") ~ athlete_display_name |> str_replace_all(" Sr.", "")
+      athlete_display_name |> str_ends(" Sr.") ~ athlete_display_name |> str_replace_all(" Sr.", ""),
+      .default = athlete_display_name
     )
   )
 
@@ -497,7 +500,8 @@ torvik_player_tibble <- torvik_player_tibble |>
       player_name |> str_ends(", Jr.") ~ player_name |> str_replace_all(", Jr.", ""),
       player_name |> str_ends(" Jr.") ~ player_name |> str_replace_all(" Jr.", ""),
       player_name |> str_ends(", Sr.") ~ player_name |> str_replace_all(", Sr.", ""),
-      player_name |> str_ends(" Sr.") ~ player_name |> str_replace_all(" Sr.", "")
+      player_name |> str_ends(" Sr.") ~ player_name |> str_replace_all(" Sr.", ""),
+      .default = player_name
     )
   )
 
@@ -513,7 +517,8 @@ torvik_players_vs_top_100 <- torvik_players_vs_top_100 |>
       player_name |> str_ends(", Jr.") ~ player_name |> str_replace_all(", Jr.", ""),
       player_name |> str_ends(" Jr.") ~ player_name |> str_replace_all(" Jr.", ""),
       player_name |> str_ends(", Sr.") ~ player_name |> str_replace_all(", Sr.", ""),
-      player_name |> str_ends(" Sr.") ~ player_name |> str_replace_all(" Sr.", "")
+      player_name |> str_ends(" Sr.") ~ player_name |> str_replace_all(" Sr.", ""),
+      .default = player_name
     )
   )
 
@@ -539,6 +544,12 @@ player_stats_vs_tournament <- player_stats_vs_tournament |>
                                               "athlete_display_name" = "player_name",
                                               "season" = "season",
                                               "athlete_jersey" = "jersey")) 
+
+# save the last observation to handle many-to-many joins (there were three) except for Kaiden Glenn, who the first observation is saved for
+player_stats_vs_tournament <- player_stats_vs_tournament |>
+  group_by(athlete_id, season) |>
+  slice(if (first(athlete_display_name) == "Kaiden Glenn" & first(season) == 2025) 1 else n()) |>
+  ungroup()
 
 # convert athlete_display_name to "player"
 player_stats_vs_tournament <- player_stats_vs_tournament |> 
@@ -611,6 +622,127 @@ player_stats_total <- player_stats_total |>
     team_color = ifelse(team_location == "West Virginia", "002855", team_color),
     team_alternate_color = ifelse(team_location == "West Virginia", "eaaa00", team_alternate_color),
   )
+
+# fix athlete_position_name so all players are list as a Guard, Forward, or Center
+player_stats_total <- player_stats_total |>
+  mutate(
+    athlete_position_name = case_when(
+      athlete_position_name %in% c("Guard", "Point Guard", "Shooting Guard") ~ "Guard",
+      athlete_position_name %in% c("Forward", "Small Forward", "Power Forward") ~ "Forward",
+      athlete_position_name == "Center" ~ "Center",
+      athlete_display_name == "Olivia Debortoli" & team_location == "Buffalo" & season == 2023 ~ "Forward",
+      athlete_display_name == "Sharmela Reid" & team_location == "New Hampshire" & season == 2024 ~ "Forward",
+      athlete_display_name == "Lauren Grover" & team_location == "Santa Clara" & season == 2025 ~ "Forward",
+      athlete_display_name == "Liz Martino" & team_location == "Memphis" & season == 2025 ~ "Guard",
+      athlete_display_name == "Mattie Olson" & team_location == "Montana State" & season == 2023 ~ "Guard",
+      athlete_display_name == "Thalia Shepard" & team_location == "Merrimack" & season == 2024 ~ "Guard",
+      TRUE ~ "Other"
+    )
+  )
+
+player_stats_vs_tournament <- player_stats_vs_tournament |>
+  mutate(
+    athlete_position_name = case_when(
+      athlete_position_name %in% c("Guard", "Point Guard", "Shooting Guard") ~ "Guard",
+      athlete_position_name %in% c("Forward", "Small Forward", "Power Forward") ~ "Forward",
+      athlete_position_name == "Center" ~ "Center",
+      athlete_display_name == "Olivia Debortoli" & team_location == "Buffalo" & season == 2023 ~ "Forward",
+      athlete_display_name == "Sharmela Reid" & team_location == "New Hampshire" & season == 2024 ~ "Forward",
+      athlete_display_name == "Lauren Grover" & team_location == "Santa Clara" & season == 2025 ~ "Forward",
+      athlete_display_name == "Liz Martino" & team_location == "Memphis" & season == 2025 ~ "Guard",
+      athlete_display_name == "Mattie Olson" & team_location == "Montana State" & season == 2023 ~ "Guard",
+      athlete_display_name == "Thalia Shepard" & team_location == "Merrimack" & season == 2024 ~ "Guard",
+      TRUE ~ "Other"
+    )
+  )
+
+# calculate the percentiles within positions for player stats in each season
+# Stats to calculate percentiles for (per-game and rate stats make most sense)
+percentile_stats_total <- c(
+  "min_pg", "pts_pg", "reb_pg", "or_pg", "dr_pg","ast_pg", "stl_pg", "blk_pg", "TO_pg","fg_per", "fg3_per", "ft_per", 
+  "fgm", "fga", "fgm2", "fga2", "fg2_per", "fgm3", "fga3", "ft_made", "ft_att", "efg_per",
+  "rim_fgm", "rim_fga", "rim_fg_per", "non_rim2_fgm", "non_rim2_fga", "non_rim2_fg_per",
+  "usage", "AST_TO_ratio", "ts_per", "dr_per", "or_per", "stl_per", "blk_per", "to_per", "fouls_per_40",
+  "porpagatu", "d_porpagatu", "total_prpg", "OBPM_torvik", "DBPM_torvik", "BPM_torvik"
+)
+
+percentile_stats_vs_tournament <- c(
+  "MIN_pg", "PTS_pg", "REB_pg", "OREB_pg", "DREB_pg","AST_pg", "STL_pg", "BLK_pg", "TO_pg","FG_per", "FG3_per", "FT_per",
+  "FGM", "FGA", "FGM2", "FGA2", "FG2_per", "FGM3", "FGA3", "FTM", "FTA", "EFG_per", 
+  "usage", "AST_TO_ratio", "efg_per", "ts_per", "dr_per", "or_per", "stl_per", "blk_per", "to_per", "fouls_per_40",
+  "porpagatu", "d_porpagatu", "total_prpg", "OBPM_torvik", "DBPM_torvik", "BPM_torvik"
+)
+
+# Minimum minutes per game threshold to be included in percentile calculation
+MIN_PG_THRESHOLD <- 10
+
+# Helper: calculate percentile of a value x within vector v
+# (what fraction of peers score <= x, i.e. higher = better for most stats)
+calc_percentile <- function(x, v) {
+  v_clean <- v[!is.na(v)]
+  if (length(v_clean) == 0 || is.na(x)) return(NA_real_)
+  round(mean(v_clean <= x) * 100, 1)
+}
+
+# for turnovers and fouls, LOWER is better — we'll flip those after
+flip_stats <- c("TO_pg", "fouls_per_40", "to_per")
+
+# build position-season peer groups, then calculate percentiles
+player_percentiles_total <- player_stats_total |>
+  filter(MIN_pg >= MIN_PG_THRESHOLD) |>
+  group_by(season, athlete_position_name) |>
+  mutate(
+    across(
+      all_of(percentile_stats_total),
+      ~ {
+        stat_name <- cur_column()
+        col_vals <- .x  # capture .x in the current scope before map_dbl
+        pctile <- map_dbl(col_vals, \(val) calc_percentile(val, col_vals))
+        if (stat_name %in% flip_stats) 100 - pctile else pctile
+      },
+      .names = "pctile_{.col}"
+    )
+  ) |>
+  ungroup() |>
+  select(athlete_id, season, starts_with("pctile_"))
+
+player_percentiles_vs_tournament <- player_stats_vs_tournament |>
+  filter(MIN_pg >= MIN_PG_THRESHOLD) |>
+  group_by(season, athlete_position_name) |>
+  mutate(
+    across(
+      all_of(percentile_stats_vs_tournament),
+      ~ {
+        stat_name <- cur_column()
+        col_vals <- .x  # capture .x in the current scope before map_dbl
+        pctile <- map_dbl(col_vals, \(val) calc_percentile(val, col_vals))
+        # Flip so that lower TO/fouls = higher (better) percentile
+        if (stat_name %in% flip_stats) 100 - pctile else pctile
+      },
+      .names = "pctile_{.col}"
+    )
+  ) |>
+  ungroup() |>
+  select(athlete_id, season, starts_with("pctile_"))
+
+# join percentiles back onto the main data frame
+player_stats_total <- player_stats_total |>
+  left_join(player_percentiles_total, by = c("athlete_id", "season"))
+
+player_stats_vs_tournament <- player_stats_vs_tournament |>
+  left_join(player_percentiles_vs_tournament, by = c("athlete_id", "season"))
+
+# keep only last observation in cases of many-to-many joins
+# player_stats_total <- player_stats_total |>
+#   group_by(athlete_id, season) |>
+#   slice_tail(n = 1) |>
+#   ungroup()
+# 
+# player_stats_vs_tournament <- player_stats_vs_tournament |>
+#   group_by(athlete_id, season) |>
+#   slice_tail(n = 1) |>
+#   ungroup()
+
 # get shot charts
 # hexagonal shot charts
 # load NCAA women's basketball play-by-play data
@@ -705,7 +837,7 @@ averages <- wbb_shots |>
     .groups = "drop"
   )
 
-# run this locally to generate the cache files
+# save files to run in the Shiny app
 saveRDS(player_stats_total, "Data/player_stats_total.rds")
 saveRDS(player_stats_vs_tournament, "Data/player_stats_vs_tournament.rds")
 saveRDS(wbb_shots, "Data/wbb_shots.rds")
