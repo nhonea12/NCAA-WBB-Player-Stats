@@ -347,7 +347,7 @@ stat_header <- function(label, output_id) {
   ))
 }
 
-# suffic function for formatting the percentiles
+# suffix function for formatting the percentiles
 ordinal_suffix <- function(x) {
   x <- round(x)
   suffix <- dplyr::case_when(
@@ -359,8 +359,6 @@ ordinal_suffix <- function(x) {
   )
   paste0(x, suffix)
 }
-
-
 
 # now the Shiny app
 # user interface for the Shiny app
