@@ -623,6 +623,14 @@ player_stats_total <- player_stats_total |>
     team_alternate_color = ifelse(team_location == "West Virginia", "eaaa00", team_alternate_color),
   )
 
+# update height for Aaliyah Crump (who's athlete ID is 5311568)
+player_stats_total <- player_stats_total |> 
+  mutate(
+    height = ifelse(athlete_id == 5311568,
+                    "6-1",
+                    height)
+  )
+
 # fix athlete_position_name so all players are list as a Guard, Forward, or Center
 player_stats_total <- player_stats_total |>
   mutate(
